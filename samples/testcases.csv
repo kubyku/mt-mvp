@@ -1,0 +1,7 @@
+suite,quality_attribute,category_large,category_medium,case_title,preconditions,step_no,test_step,input_data,expected_result,priority,tags
+API,Security,Auth,Login,Login API returns token,User account exists,1,Send POST /login,valid credentials,200 OK,High,"auth,api"
+API,Security,Auth,Login,Login API returns token,User account exists,2,Verify token field,response body,token exists,High,"auth,api"
+API,Security,Auth,Login,Login API returns token,User account exists,3,Call /me with token,Authorization header,user profile returned,High,"auth,api"
+UI,Usability,Navigation,Suite,Suite tree loads and expands,Project has suites,1,Open Test Cases page,sidebar click,suite tree visible,Medium,"ui,suite"
+UI,Usability,Navigation,Suite,Suite tree loads and expands,Project has suites,2,Expand suite,click arrow,child suites visible,Medium,"ui,suite"
+UI,Usability,Navigation,Suite,Suite tree loads and expands,Project has suites,3,Select suite,click suite row,case list filtered,Medium,"ui,suite"
