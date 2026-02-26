@@ -54,10 +54,10 @@ export function deleteUser(userId: number): void {
   db.prepare(`DELETE FROM users WHERE id = ?`).run(userId);
 }
 
-export function findUserByUsername(username: string): { id: number; username: string; displayName: string; role: string } | null {
+export function findUserByUsername(username: string): { id: number; username: string; displayName: string; role: string; password: string } | null {
   const row = db
-    .prepare(`SELECT id, username, display_name, role FROM users WHERE username = ?`)
-    .get(username) as { id: number; username: string; display_name: string; role: string } | undefined;
+    .prepare(`SELECT id, username, display_name, role, password FROM users WHERE username = ?`)
+    .get(username) as { id: number; username: string; display_name: string; role: string; password: string } | undefined;
 
   if (!row) return null;
   return {
@@ -65,6 +65,7 @@ export function findUserByUsername(username: string): { id: number; username: st
     username: row.username,
     displayName: row.display_name,
     role: row.role,
+    password: row.password,
   };
 }
 

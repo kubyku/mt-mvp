@@ -37,10 +37,12 @@ async function requestText(url: string, init?: RequestInit): Promise<string> {
 }
 
 export const api = {
-  login: (username: string) => request<{ user: unknown }>("/api/auth/login", { method: "POST", body: JSON.stringify({ username }) }),
+  login: (username: string, password: string) =>
+    request<{ user: unknown }>("/api/auth/login", { method: "POST", body: JSON.stringify({ username, password }) }),
+  register: (username: string, displayName: string, password: string) =>
+    request<{ user: unknown }>("/api/auth/register", { method: "POST", body: JSON.stringify({ username, displayName, password }) }),
   logout: () => request<{ ok: boolean }>("/api/auth/logout", { method: "POST" }),
   me: () => request<{ user: unknown }>("/api/auth/me"),
-  authUsers: () => request<{ users: unknown[] }>("/api/auth/users"),
 
   projects: () => request<{ projects: unknown[] }>("/api/projects"),
   createProject: (name: string) =>

@@ -35,11 +35,11 @@ type ImportPreview = {
 };
 
 const views: Array<{ key: ViewKey; label: string }> = [
-  { key: "cases", label: "Test Cases" },
-  { key: "import", label: "Import" },
-  { key: "runs", label: "Test Runs" },
-  { key: "reports", label: "Reports" },
-  { key: "admin", label: "Admin" },
+  { key: "cases", label: "테스트 케이스" },
+  { key: "import", label: "가져오기" },
+  { key: "runs", label: "테스트 실행" },
+  { key: "reports", label: "리포트" },
+  { key: "admin", label: "관리" },
 ];
 
 const stepStatuses: StepStatus[] = ["untested", "pass", "fail", "blocked"];
@@ -84,8 +84,10 @@ const errorMessageMap: Record<string, string> = {
 function App() {
   const [activeView, setActiveView] = useState<ViewKey>("cases");
 
-  const [authUsers, setAuthUsers] = useState<User[]>([]);
-  const [selectedLogin, setSelectedLogin] = useState("admin");
+  const [loginUsername, setLoginUsername] = useState("");
+  const [loginPassword, setLoginPassword] = useState("");
+  const [loginMode, setLoginMode] = useState<"login" | "register">("login");
+  const [registerDisplayName, setRegisterDisplayName] = useState("");
   const [currentUser, setCurrentUser] = useState<User | null>(null);
 
   const [projects, setProjects] = useState<Project[]>([]);
@@ -421,12 +423,6 @@ function App() {
   }, [diffResult]);
 
   async function initializeAuth(): Promise<void> {
-    const users = (await api.authUsers()).users as User[];
-    setAuthUsers(users);
-    if (users.length && !selectedLogin) {
-      setSelectedLogin(users[0].username);
-    }
-
     try {
       const me = (await api.me()).user as User;
       setCurrentUser(me);
@@ -608,11 +604,24 @@ function App() {
 
   async function handleLogin(): Promise<void> {
     await runGuarded(async () => {
-      await api.login(selectedLogin);
-      const me = (await api.me()).user as User;
+      const result = await api.login(loginUsername, loginPassword);
+      const me = result.user as User;
       setCurrentUser(me);
+      setLoginPassword("");
       setStatusMessage(`Logged in as ${me.displayName}`);
     }, "로그인에 실패했습니다.");
+  }
+
+  async function handleRegister(): Promise<void> {
+    await runGuarded(async () => {
+      const result = await api.register(loginUsername, registerDisplayName, loginPassword);
+      const me = result.user as User;
+      setCurrentUser(me);
+      setLoginPassword("");
+      setRegisterDisplayName("");
+      setLoginMode("login");
+      setStatusMessage(`회원가입 완료: ${me.displayName}`);
+    }, "회원가입에 실패했습니다.");
   }
 
   async function handleLogout(): Promise<void> {
@@ -1176,23 +1185,60 @@ function App() {
   }
 
   if (!currentUser) {
+    const isRegister = loginMode === "register";
+    const submitFn = isRegister ? handleRegister : handleLogin;
+    const canSubmit = isRegister
+      ? !!(loginUsername && loginPassword && registerDisplayName)
+      : !!(loginUsername && loginPassword);
+
     return (
       <div className="login-wrap">
         <div className="card login-card">
-          <h1>TMT MVP Login</h1>
-          <p>Select a seeded user for MVP session authentication.</p>
+          <h1>TMT MVP</h1>
+          <p>{isRegister ? "새 계정을 생성합니다." : "등록된 계정으로 로그인하세요."}</p>
           <label>
-            User
-            <select value={selectedLogin} onChange={(event) => setSelectedLogin(event.target.value)}>
-              {authUsers.map((user) => (
-                <option key={user.id} value={user.username}>
-                  {user.displayName} ({user.username})
-                </option>
-              ))}
-            </select>
+            아이디
+            <input
+              type="text"
+              value={loginUsername}
+              onChange={(e) => setLoginUsername(e.target.value)}
+              placeholder="아이디"
+              onKeyDown={(e) => e.key === "Enter" && canSubmit && void submitFn()}
+            />
           </label>
-          <button onClick={() => void handleLogin()}>Login</button>
+          {isRegister && (
+            <label>
+              이름
+              <input
+                type="text"
+                value={registerDisplayName}
+                onChange={(e) => setRegisterDisplayName(e.target.value)}
+                placeholder="표시 이름"
+                onKeyDown={(e) => e.key === "Enter" && canSubmit && void submitFn()}
+              />
+            </label>
+          )}
+          <label>
+            비밀번호
+            <input
+              type="password"
+              value={loginPassword}
+              onChange={(e) => setLoginPassword(e.target.value)}
+              placeholder="비밀번호"
+              onKeyDown={(e) => e.key === "Enter" && canSubmit && void submitFn()}
+            />
+          </label>
+          <button onClick={() => void submitFn()} disabled={!canSubmit}>
+            {isRegister ? "회원가입" : "로그인"}
+          </button>
           {errorMessage ? <div className="error">{errorMessage}</div> : null}
+          <button
+            className="ghost"
+            style={{ marginTop: 4 }}
+            onClick={() => { setLoginMode(isRegister ? "login" : "register"); setErrorMessage(""); }}
+          >
+            {isRegister ? "로그인으로 돌아가기" : "회원가입"}
+          </button>
         </div>
       </div>
     );
@@ -1218,7 +1264,7 @@ function App() {
           ))}
         </nav>
         <button className="ghost" onClick={() => void handleLogout()}>
-          Logout
+          로그아웃
         </button>
       </aside>
 
@@ -1237,7 +1283,7 @@ function App() {
                   if (!showNotifications) markAllRead();
                 }}
               >
-                &#128276;
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
                 {unreadCount > 0 && <span className="notification-badge">{unreadCount > 99 ? "99+" : unreadCount}</span>}
               </button>
               {showNotifications && (
@@ -1266,7 +1312,7 @@ function App() {
               )}
             </div>
             <label>
-              Project
+              프로젝트
               <select
                 value={projectId ?? ""}
                 onChange={(event) => {
@@ -1283,16 +1329,16 @@ function App() {
               </select>
             </label>
             <button className="ghost" onClick={() => void reloadCurrentProject()}>
-              Refresh
+              새로고침
             </button>
             <button className="ghost" onClick={() => void openCreateProjectModal()}>
-              + Project
+              + 프로젝트
             </button>
             <button className="ghost" onClick={() => void openRenameProjectModal()} disabled={!projectId}>
-              Rename
+              이름변경
             </button>
             <button className="ghost" onClick={() => void openDeleteProjectModal()} disabled={!projectId}>
-              Delete
+              삭제
             </button>
           </div>
         </header>
@@ -1302,29 +1348,29 @@ function App() {
         {activeView === "cases" && (
           <section className="content-grid cases-grid">
             <div className="card">
-              <h3>Suite Tree</h3>
+              <h3>스위트 트리</h3>
               <div className="inline-actions">
                 <button className="ghost tiny" onClick={() => setSuiteFilterId(null)}>
-                  All Cases
+                  전체 케이스
                 </button>
                 <button className="ghost tiny" onClick={() => void openRenameSuiteModal()} disabled={!suiteFilterId}>
-                  Rename Suite
+                  스위트 이름변경
                 </button>
                 <button className="ghost tiny" onClick={() => void openDeleteSuiteModal()} disabled={!suiteFilterId}>
-                  Delete Suite
+                  스위트 삭제
                 </button>
               </div>
               <div className="suite-create">
                 <label>
-                  New Suite
+                  새 스위트
                   <input
                     value={newSuiteName}
                     onChange={(event) => setNewSuiteName(event.target.value)}
-                    placeholder="suite name"
+                    placeholder="스위트 이름"
                   />
                 </label>
                 <label>
-                  Parent
+                  상위 스위트
                   <select
                     value={newSuiteParentId ?? ""}
                     onChange={(event) => setNewSuiteParentId(event.target.value ? Number(event.target.value) : null)}
@@ -1338,20 +1384,20 @@ function App() {
                   </select>
                 </label>
                 <button className="ghost tiny" onClick={() => void handleCreateSuite()}>
-                  + Add Suite
+                  + 스위트 추가
                 </button>
               </div>
               {renderSuiteTree()}
             </div>
 
             <div className="card">
-              <h3>Case List ({filteredCases.length})</h3>
+              <h3>케이스 목록 ({filteredCases.length})</h3>
               <div className="inline-actions">
                 <button className="ghost tiny" onClick={() => void openCreateCaseModal()}>
-                  + Case
+                  + 케이스
                 </button>
                 <button className="ghost tiny" onClick={() => void openDeleteCaseModal()} disabled={!selectedCaseId}>
-                  Delete Case
+                  케이스 삭제
                 </button>
               </div>
               <div className="table-wrap">
@@ -1359,10 +1405,10 @@ function App() {
                   <thead>
                     <tr>
                       <th>ID</th>
-                      <th>Title</th>
-                      <th>Priority</th>
-                      <th>Suite</th>
-                      <th>Version</th>
+                      <th>제목</th>
+                      <th>우선순위</th>
+                      <th>스위트</th>
+                      <th>버전</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1385,9 +1431,9 @@ function App() {
             </div>
 
             <div className="card">
-              <h3>Case Detail</h3>
+              <h3>케이스 상세</h3>
               {!caseDraft || !caseDetail ? (
-                <p>Select a case.</p>
+                <p>케이스를 선택하세요.</p>
               ) : (
                 <div className="case-detail">
                   <div className="detail-tabs">
@@ -1395,35 +1441,35 @@ function App() {
                       className={caseDetailTab === "basic" ? "active" : "ghost"}
                       onClick={() => setCaseDetailTab("basic")}
                     >
-                      Basic
+                      기본정보
                     </button>
                     <button
                       className={caseDetailTab === "steps" ? "active" : "ghost"}
                       onClick={() => setCaseDetailTab("steps")}
                     >
-                      Steps
+                      스텝
                     </button>
                     <button
                       className={caseDetailTab === "history" ? "active" : "ghost"}
                       onClick={() => setCaseDetailTab("history")}
                     >
-                      History
+                      히스토리
                     </button>
-                    <button onClick={() => void saveCaseDraft()}>Save (new version)</button>
+                    <button onClick={() => void saveCaseDraft()}>저장 (새 버전)</button>
                   </div>
 
                   {caseDetailTab === "basic" && (
                     <div className="detail-section">
                       <div className="field-grid">
                         <label>
-                          Title
+                          제목
                           <input
                             value={caseDraft.title}
                             onChange={(event) => setCaseDraft({ ...caseDraft, title: event.target.value })}
                           />
                         </label>
                         <label>
-                          Suite
+                          스위트
                           <select
                             value={caseDraft.suiteId}
                             onChange={(event) => setCaseDraft({ ...caseDraft, suiteId: Number(event.target.value) })}
@@ -1436,42 +1482,42 @@ function App() {
                           </select>
                         </label>
                         <label>
-                          Quality Attribute
+                          품질 속성
                           <input
                             value={caseDraft.qualityAttribute}
                             onChange={(event) => setCaseDraft({ ...caseDraft, qualityAttribute: event.target.value })}
                           />
                         </label>
                         <label>
-                          Priority
+                          우선순위
                           <input
                             value={caseDraft.priority}
                             onChange={(event) => setCaseDraft({ ...caseDraft, priority: event.target.value })}
                           />
                         </label>
                         <label>
-                          Category Large
+                          대분류
                           <input
                             value={caseDraft.categoryLarge}
                             onChange={(event) => setCaseDraft({ ...caseDraft, categoryLarge: event.target.value })}
                           />
                         </label>
                         <label>
-                          Category Medium
+                          중분류
                           <input
                             value={caseDraft.categoryMedium}
                             onChange={(event) => setCaseDraft({ ...caseDraft, categoryMedium: event.target.value })}
                           />
                         </label>
                         <label className="full">
-                          Preconditions
+                          사전조건
                           <textarea
                             value={caseDraft.preconditions}
                             onChange={(event) => setCaseDraft({ ...caseDraft, preconditions: event.target.value })}
                           />
                         </label>
                         <label className="full">
-                          Tags
+                          태그
                           <input
                             value={caseDraft.tags}
                             onChange={(event) => setCaseDraft({ ...caseDraft, tags: event.target.value })}
@@ -1484,15 +1530,15 @@ function App() {
 
                   {caseDetailTab === "steps" && (
                     <div className="detail-section">
-                      <h4>Steps</h4>
+                      <h4>스텝</h4>
                       <table>
                         <thead>
                           <tr>
                             <th>No</th>
-                            <th>Action</th>
-                            <th>Input Data</th>
-                            <th>Expected Result</th>
-                            <th>Action</th>
+                            <th>수행 내용</th>
+                            <th>입력 데이터</th>
+                            <th>기대 결과</th>
+                            <th>작업</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -1547,7 +1593,7 @@ function App() {
                                     setCaseDraft({ ...caseDraft, steps: next });
                                   }}
                                 >
-                                  Remove
+                                  삭제
                                 </button>
                               </td>
                             </tr>
@@ -1572,7 +1618,7 @@ function App() {
                             })
                           }
                         >
-                          + Step
+                          + 스텝 추가
                         </button>
                       </div>
                     </div>
@@ -1580,7 +1626,7 @@ function App() {
 
                   {caseDetailTab === "history" && (
                     <div className="detail-section">
-                      <h4>History / Version Diff</h4>
+                      <h4>히스토리 / 버전 비교</h4>
                       <div className="inline-actions">
                         <label>
                           From
@@ -1588,7 +1634,7 @@ function App() {
                             value={diffFromVersion ?? ""}
                             onChange={(event) => setDiffFromVersion(event.target.value ? Number(event.target.value) : null)}
                           >
-                            <option value="">Select</option>
+                            <option value="">선택</option>
                             {caseDetail.versions.map((version) => (
                               <option key={version.id} value={version.id}>
                                 v{version.versionNo}
@@ -1602,7 +1648,7 @@ function App() {
                             value={diffToVersion ?? ""}
                             onChange={(event) => setDiffToVersion(event.target.value ? Number(event.target.value) : null)}
                           >
-                            <option value="">Select</option>
+                            <option value="">선택</option>
                             {caseDetail.versions.map((version) => (
                               <option key={version.id} value={version.id}>
                                 v{version.versionNo}
@@ -1611,7 +1657,7 @@ function App() {
                           </select>
                         </label>
                         <button className="ghost" onClick={() => void handleCompareVersions()}>
-                          Compare
+                          비교
                         </button>
                       </div>
 
@@ -1625,14 +1671,14 @@ function App() {
 
                       {diffResult ? (
                         <div className="diff-box">
-                          <h5>Field Changes</h5>
+                          <h5>필드 변경사항</h5>
                           <div className="table-wrap">
                             <table>
                               <thead>
                                 <tr>
-                                  <th>Field</th>
-                                  <th>From</th>
-                                  <th>To</th>
+                                  <th>필드</th>
+                                  <th>이전</th>
+                                  <th>이후</th>
                                 </tr>
                               </thead>
                               <tbody>
@@ -1646,24 +1692,24 @@ function App() {
                                   ))
                                 ) : (
                                   <tr>
-                                    <td colSpan={3}>No field changes</td>
+                                    <td colSpan={3}>변경된 필드 없음</td>
                                   </tr>
                                 )}
                               </tbody>
                             </table>
                           </div>
 
-                          <h5>Step Changes</h5>
+                          <h5>스텝 변경사항</h5>
                           <div className="table-wrap">
                             <table>
                               <thead>
                                 <tr>
-                                  <th>Step No</th>
-                                  <th>Type</th>
-                                  <th>From Action</th>
-                                  <th>To Action</th>
-                                  <th>From Expected</th>
-                                  <th>To Expected</th>
+                                  <th>스텝 No</th>
+                                  <th>변경유형</th>
+                                  <th>이전 수행내용</th>
+                                  <th>이후 수행내용</th>
+                                  <th>이전 기대결과</th>
+                                  <th>이후 기대결과</th>
                                 </tr>
                               </thead>
                               <tbody>
@@ -1680,7 +1726,7 @@ function App() {
                                   ))
                                 ) : (
                                   <tr>
-                                    <td colSpan={6}>No step changes</td>
+                                    <td colSpan={6}>변경된 스텝 없음</td>
                                   </tr>
                                 )}
                               </tbody>
@@ -1700,15 +1746,15 @@ function App() {
           <section className="content-grid import-grid">
             <div className="card">
               <div className="import-header">
-                <h3>CSV Import</h3>
+                <h3>CSV 가져오기</h3>
                 <div className="import-tools">
                   <label>
-                    Export Suite
+                    내보내기 스위트
                     <select
                       value={exportSuiteId ?? ""}
                       onChange={(event) => setExportSuiteId(event.target.value ? Number(event.target.value) : null)}
                     >
-                      <option value="">All Suites</option>
+                      <option value="">전체 스위트</option>
                       {suites.map((suite) => (
                         <option key={suite.id} value={suite.id}>
                           {suite.name}
@@ -1717,12 +1763,12 @@ function App() {
                     </select>
                   </label>
                   <button className="ghost" onClick={handleExportCasesCsv}>
-                    Export Current Cases CSV
+                    현재 케이스 CSV 내보내기
                   </button>
                 </div>
               </div>
               <label>
-                CSV File
+                CSV 파일
                 <input
                   type="file"
                   accept=".csv"
@@ -1735,14 +1781,14 @@ function App() {
                 />
               </label>
               <label>
-                CSV Content
+                CSV 내용
                 <textarea value={csvText} onChange={(event) => setCsvText(event.target.value)} rows={12} />
               </label>
               <div className="import-main-actions">
                 <button className="ghost" onClick={() => void handlePreviewImport()}>
-                  Preview
+                  미리보기
                 </button>
-                <button onClick={() => void handleExecuteImport()}>Execute Import</button>
+                <button onClick={() => void handleExecuteImport()}>가져오기 실행</button>
               </div>
 
               {preview ? (
@@ -1755,10 +1801,10 @@ function App() {
                     <table>
                       <thead>
                         <tr>
-                          <th>Row</th>
-                          <th>Status</th>
-                          <th>Error</th>
-                          <th>Case</th>
+                          <th>행</th>
+                          <th>상태</th>
+                          <th>오류</th>
+                          <th>케이스</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -1778,13 +1824,13 @@ function App() {
             </div>
 
             <div className="card">
-              <h3>Import Logs</h3>
+              <h3>가져오기 로그</h3>
               <div className="inline-actions">
                 <button className="ghost tiny" onClick={() => void openDeleteImportLogModal()} disabled={!selectedImportLogId}>
-                  Delete Selected Log
+                  선택 로그 삭제
                 </button>
                 <button className="ghost tiny" onClick={() => void openClearImportLogsModal()} disabled={!importLogs.length}>
-                  Clear Logs
+                  전체 로그 삭제
                 </button>
               </div>
               <div className="table-wrap">
@@ -1792,10 +1838,10 @@ function App() {
                   <thead>
                     <tr>
                       <th>ID</th>
-                      <th>File</th>
-                      <th>Rows</th>
-                      <th>Success</th>
-                      <th>Fail</th>
+                      <th>파일</th>
+                      <th>행수</th>
+                      <th>성공</th>
+                      <th>실패</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1814,10 +1860,10 @@ function App() {
 
               {selectedImportLogId ? (
                 <div className="detail-section">
-                  <h4>Log Rows #{selectedImportLogId}</h4>
+                  <h4>로그 상세 #{selectedImportLogId}</h4>
                   <div className="inline-actions">
                     <label>
-                      Status
+                      상태
                       <select
                         value={importLogStatusFilter}
                         onChange={(event) => setImportLogStatusFilter(event.target.value as "all" | "success" | "fail")}
@@ -1828,11 +1874,11 @@ function App() {
                       </select>
                     </label>
                     <label>
-                      Error Search
+                      오류 검색
                       <input
                         value={importLogErrorSearch}
                         onChange={(event) => setImportLogErrorSearch(event.target.value)}
-                        placeholder="error keyword"
+                        placeholder="오류 키워드"
                       />
                     </label>
                   </div>
@@ -1842,7 +1888,7 @@ function App() {
                         Row {row.rowNumber} / {row.status} {row.errorMessage ? `- ${row.errorMessage}` : ""}
                       </li>
                     ))}
-                    {!filteredImportLogRows.length ? <li>No log rows matched filters.</li> : null}
+                    {!filteredImportLogRows.length ? <li>필터와 일치하는 로그가 없습니다.</li> : null}
                   </ul>
                 </div>
               ) : null}
@@ -1853,25 +1899,25 @@ function App() {
         {activeView === "runs" && (
           <section className="content-grid runs-grid">
             <div className="card">
-              <h3>Create Run</h3>
+              <h3>실행 생성</h3>
               <label>
-                Run Name
+                실행 이름
                 <input value={newRunName} onChange={(event) => setNewRunName(event.target.value)} />
               </label>
               <label>
-                Release Version
+                릴리스 버전
                 <input value={newRunReleaseVersion} onChange={(event) => setNewRunReleaseVersion(event.target.value)} />
               </label>
               <label>
-                Case Search
+                케이스 검색
                 <input
                   value={createRunCaseSearch}
                   onChange={(event) => setCreateRunCaseSearch(event.target.value)}
-                  placeholder="title/suite/id"
+                  placeholder="제목/스위트/ID"
                 />
               </label>
 
-              <h4>Select Cases</h4>
+              <h4>케이스 선택</h4>
               <ul className="check-list">
                 {filteredSelectableCases.map((item) => (
                   <li key={item.id}>
@@ -1892,11 +1938,11 @@ function App() {
                   </li>
                 ))}
               </ul>
-              <button onClick={() => void handleCreateRun()}>Create Run</button>
+              <button onClick={() => void handleCreateRun()}>실행 생성</button>
             </div>
 
             <div className="card">
-              <h3>Runs</h3>
+              <h3>실행 목록</h3>
               <ul className="list">
                 {runs.map((run) => (
                   <li key={run.id}>
@@ -1914,26 +1960,26 @@ function App() {
                       {runDetail.run.name} ({runDetail.run.status})
                     </h4>
                     <button className="ghost" onClick={() => void toggleRunStatus()}>
-                      Toggle Open/Closed
+                      열기/닫기 전환
                     </button>
                     <button className="ghost" onClick={() => void openUpdateRunModal()}>
-                      Edit Run
+                      실행 수정
                     </button>
                     <button className="ghost" onClick={() => void openDeleteRunModal()}>
-                      Delete Run
+                      실행 삭제
                     </button>
                   </div>
                   <div className="run-filters">
                     <label>
-                      Search
+                      검색
                       <input
                         value={runCaseSearch}
                         onChange={(event) => setRunCaseSearch(event.target.value)}
-                        placeholder="case title or id"
+                        placeholder="케이스 제목 또는 ID"
                       />
                     </label>
                     <label>
-                      Status
+                      상태
                       <select
                         value={runCaseStatusFilter}
                         onChange={(event) => setRunCaseStatusFilter(event.target.value as "all" | StepStatus)}
@@ -1947,7 +1993,7 @@ function App() {
                       </select>
                     </label>
                     <label>
-                      Priority
+                      우선순위
                       <select
                         value={runCasePriorityFilter}
                         onChange={(event) => setRunCasePriorityFilter(event.target.value)}
@@ -1966,9 +2012,9 @@ function App() {
                       <thead>
                         <tr>
                           <th>ID</th>
-                          <th>Case</th>
-                          <th>Status</th>
-                          <th>Version</th>
+                          <th>케이스</th>
+                          <th>상태</th>
+                          <th>버전</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -1982,7 +2028,7 @@ function App() {
                         ))}
                         {!filteredRunCases.length ? (
                           <tr>
-                            <td colSpan={4}>No run cases matched filters.</td>
+                            <td colSpan={4}>필터와 일치하는 실행 케이스가 없습니다.</td>
                           </tr>
                         ) : null}
                       </tbody>
@@ -1993,9 +2039,9 @@ function App() {
             </div>
 
             <div className="card">
-              <h3>Run Execution</h3>
+              <h3>실행 테스트</h3>
               {!runCaseExecution ? (
-                <p>Select run case</p>
+                <p>실행 케이스를 선택하세요</p>
               ) : (
                 <>
                   <p>
@@ -2003,7 +2049,7 @@ function App() {
                   </p>
                   <div className="run-summary-panel">
                     <div className="run-summary-title">
-                      Calculated Overall Status: <strong>{computedRunOverallStatus}</strong>
+                      종합 상태: <strong>{computedRunOverallStatus}</strong>
                     </div>
                     <div className="run-summary-stats">
                       <span className="summary-chip untested">untested {runStepSummary.untested}</span>
@@ -2016,10 +2062,10 @@ function App() {
                     <table>
                       <thead>
                         <tr>
-                          <th>Step</th>
-                          <th>Action</th>
-                          <th>Status</th>
-                          <th>Comment</th>
+                          <th>스텝</th>
+                          <th>수행 내용</th>
+                          <th>상태</th>
+                          <th>코멘트</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -2069,10 +2115,10 @@ function App() {
                     </table>
                   </div>
                   <label>
-                    Overall Comment
+                    종합 코멘트
                     <textarea value={runCaseComment} onChange={(event) => setRunCaseComment(event.target.value)} rows={3} />
                   </label>
-                  <button onClick={() => void handleSaveRunCaseResult()}>Save Result</button>
+                  <button onClick={() => void handleSaveRunCaseResult()}>결과 저장</button>
                 </>
               )}
             </div>
@@ -2083,35 +2129,35 @@ function App() {
           <section className="content-grid reports-grid">
             <div className="card">
               <div className="inline-actions">
-                <h3>Progress</h3>
+                <h3>진행 현황</h3>
                 <button className="ghost" onClick={() => void refreshReports()}>
-                  Refresh
+                  새로고침
                 </button>
               </div>
               {reportSummary ? (
                 <div className="stats-grid">
-                  <div className="stat">Total Run Cases: {reportSummary.totalRunCases}</div>
-                  <div className="stat">Pass: {reportSummary.pass}</div>
-                  <div className="stat">Fail: {reportSummary.fail}</div>
-                  <div className="stat">Blocked: {reportSummary.blocked}</div>
-                  <div className="stat">Untested: {reportSummary.untested}</div>
-                  <div className="stat">Completion: {reportSummary.completionRate}%</div>
+                  <div className="stat">전체 실행 케이스: {reportSummary.totalRunCases}</div>
+                  <div className="stat">통과: {reportSummary.pass}</div>
+                  <div className="stat">실패: {reportSummary.fail}</div>
+                  <div className="stat">차단: {reportSummary.blocked}</div>
+                  <div className="stat">미테스트: {reportSummary.untested}</div>
+                  <div className="stat">완료율: {reportSummary.completionRate}%</div>
                 </div>
               ) : (
-                <p>No data</p>
+                <p>데이터 없음</p>
               )}
             </div>
 
             <div className="card">
-              <h3>Failure List</h3>
+              <h3>실패 목록</h3>
               <div className="table-wrap">
                 <table>
                   <thead>
                     <tr>
-                      <th>Run</th>
-                      <th>Case</th>
-                      <th>Priority</th>
-                      <th>Comment</th>
+                      <th>실행</th>
+                      <th>케이스</th>
+                      <th>우선순위</th>
+                      <th>코멘트</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -2129,7 +2175,7 @@ function App() {
             </div>
 
             <div className="card">
-              <h3>Priority Aggregation</h3>
+              <h3>우선순위별 집계</h3>
               <ul className="history-list">
                 {reportPriorities.map((item) => (
                   <li key={item.priority}>
@@ -2144,16 +2190,16 @@ function App() {
         {activeView === "admin" && (
           <section className="content-grid admin-grid">
             <div className="card">
-              <h3>Users</h3>
+              <h3>사용자</h3>
               <div className="inline-actions">
                 <button className="ghost tiny" onClick={() => void openCreateUserModal()}>
-                  + User
+                  + 사용자
                 </button>
                 <button className="ghost tiny" onClick={() => void openEditUserModal()} disabled={!selectedAdminUserId}>
-                  Edit User
+                  사용자 수정
                 </button>
                 <button className="ghost tiny" onClick={() => void openDeleteUserModal()} disabled={!selectedAdminUserId}>
-                  Delete User
+                  사용자 삭제
                 </button>
               </div>
               <div className="table-wrap">
@@ -2161,10 +2207,10 @@ function App() {
                   <thead>
                     <tr>
                       <th>ID</th>
-                      <th>Username</th>
-                      <th>Name</th>
-                      <th>Email</th>
-                      <th>Role</th>
+                      <th>아이디</th>
+                      <th>이름</th>
+                      <th>이메일</th>
+                      <th>역할</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -2186,7 +2232,7 @@ function App() {
               </div>
             </div>
             <div className="card">
-              <h3>Recent Import Logs</h3>
+              <h3>최근 가져오기 로그</h3>
               <ul className="history-list">
                 {importLogs.slice(0, 10).map((log) => (
                   <li key={log.id}>
@@ -2300,7 +2346,7 @@ function App() {
               <>
                 <div className="modal-body">
                   <label>
-                    Run 이름
+                    실행 이름
                     <input
                       value={modal.fields?.name ?? ""}
                       onChange={(e) => updateModalField("name", e.target.value)}
@@ -2308,7 +2354,7 @@ function App() {
                     />
                   </label>
                   <label>
-                    Release Version
+                    릴리스 버전
                     <input
                       value={modal.fields?.releaseVersion ?? ""}
                       onChange={(e) => updateModalField("releaseVersion", e.target.value)}
@@ -2330,7 +2376,7 @@ function App() {
               <>
                 <div className="modal-body">
                   <label>
-                    Username
+                    아이디
                     <input
                       value={modal.fields?.username ?? ""}
                       onChange={(e) => updateModalField("username", e.target.value)}
@@ -2338,7 +2384,7 @@ function App() {
                     />
                   </label>
                   <label>
-                    이름 (Display Name)
+                    이름
                     <input
                       value={modal.fields?.displayName ?? ""}
                       onChange={(e) => updateModalField("displayName", e.target.value)}
@@ -2361,7 +2407,7 @@ function App() {
                     />
                   </label>
                   <label>
-                    역할 (Role)
+                    역할
                     <select
                       value={modal.fields?.role ?? "tester"}
                       onChange={(e) => updateModalField("role", e.target.value)}

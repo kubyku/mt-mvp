@@ -117,26 +117,45 @@ app.get("/api/health", (_req, res) => {
   res.json({ ok: true, now: new Date().toISOString() });
 });
 
-app.get("/api/auth/users", (_req, res) => {
-  res.json({ users: listUsers() });
-});
-
 app.post("/api/auth/login", (req, res) => {
   const username = String(req.body?.username || "").trim();
-  if (!username) {
-    res.status(400).json({ message: "username_required" });
+  const password = String(req.body?.password || "");
+  if (!username || !password) {
+    res.status(400).json({ message: "아이디와 비밀번호를 입력해주세요." });
     return;
   }
 
   const user = findUserByUsername(username);
-  if (!user) {
-    res.status(404).json({ message: "user_not_found" });
+  if (!user || user.password !== password) {
+    res.status(401).json({ message: "아이디 또는 비밀번호가 올바르지 않습니다." });
     return;
   }
 
   const sid = createSession(user.id);
   setSessionCookie(res, sid);
-  res.json({ user });
+  const { password: _pw, ...safeUser } = user;
+  res.json({ user: safeUser });
+});
+
+app.post("/api/auth/register", (req, res) => {
+  const username = String(req.body?.username || "").trim();
+  const displayName = String(req.body?.displayName || "").trim();
+  const password = String(req.body?.password || "");
+  if (!username || !displayName || !password) {
+    res.status(400).json({ message: "모든 항목을 입력해주세요." });
+    return;
+  }
+
+  const existing = findUserByUsername(username);
+  if (existing) {
+    res.status(409).json({ message: "이미 사용 중인 아이디입니다." });
+    return;
+  }
+
+  const userId = createUser({ username, displayName, role: "tester", email: "", password });
+  const sid = createSession(userId);
+  setSessionCookie(res, sid);
+  res.json({ user: { id: userId, username, displayName, role: "tester" } });
 });
 
 app.post("/api/auth/logout", requireAuth, (req, res) => {

@@ -20,15 +20,15 @@ type SeedCase = {
 
 function seedUsers(): void {
   const users = [
-    { username: "admin", displayName: "Admin User", role: "admin" },
-    { username: "qa1", displayName: "QA One", role: "qa" },
-    { username: "qa2", displayName: "QA Two", role: "qa" },
+    { username: "admin", displayName: "Admin User", role: "admin", password: "admin" },
+    { username: "qa1", displayName: "QA One", role: "qa", password: "qa1" },
+    { username: "qa2", displayName: "QA Two", role: "qa", password: "qa2" },
   ];
   const stmt = db.prepare(
-    `INSERT OR IGNORE INTO users(username, display_name, role, created_at) VALUES (?, ?, ?, ?)`,
+    `INSERT OR IGNORE INTO users(username, display_name, role, email, password, created_at) VALUES (?, ?, ?, '', ?, ?)`,
   );
   for (const user of users) {
-    stmt.run(user.username, user.displayName, user.role, nowIso());
+    stmt.run(user.username, user.displayName, user.role, user.password, nowIso());
   }
 }
 
